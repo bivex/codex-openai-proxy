@@ -26,9 +26,11 @@ This proxy bridges the gap between:
 ```bash
 git clone https://github.com/Securiteru/codex-openai-proxy.git
 cd codex-openai-proxy
-cargo build --release
-./target/release/codex-openai-proxy --port 8888 --auth-path ~/.codex/auth.json
+go build -o codex-openai-proxy
+./codex-openai-proxy --port 8888 --auth-path ~/.codex/auth.json
 ```
+
+**Prerequisites**: Go 1.21 or later
 
 ### 2. Setup HTTPS Tunnel (Required for CLINE)
 
@@ -169,8 +171,9 @@ RUST_LOG=debug cargo run
 ### Debug Mode
 
 ```bash
-# Run with debug logging
-RUST_LOG=debug cargo run -- --port 8080
+# Build and run
+go build -o codex-openai-proxy
+./codex-openai-proxy --port 8080
 
 # Test with verbose curl
 curl -v -X POST http://localhost:8080/v1/chat/completions \
@@ -183,10 +186,10 @@ curl -v -X POST http://localhost:8080/v1/chat/completions \
 ### Building
 
 ```bash
-cargo build
-cargo test
-cargo clippy
-cargo fmt
+go build
+go test
+go vet
+go fmt
 ```
 
 ### Adding Features
