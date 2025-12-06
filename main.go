@@ -123,8 +123,8 @@ func main() {
 	var port string
 	var authPath string
 
-	flag.StringVar(&port, "port", "8080", "Port to listen on")
-	flag.StringVar(&authPath, "auth-path", "~/.codex/auth.json", "Path to Codex auth.json file")
+	flag.StringVar(&port, "port", "4303", "Port to listen on")
+	flag.StringVar(&authPath, "auth-path", "", "Path to Codex auth.json file (auto-discover if not specified)")
 	flag.Parse()
 
 	fmt.Println("Initializing Codex OpenAI Proxy...")
@@ -135,7 +135,11 @@ func main() {
 		log.Fatalf("Failed to initialize proxy server: %v", err)
 	}
 
-	fmt.Printf("✓ Loaded authentication from %s\n", authPath)
+	if authPath == "" {
+		fmt.Println("✓ Loaded authentication via auto-discovery")
+	} else {
+		fmt.Printf("✓ Loaded authentication from %s\n", authPath)
+	}
 
 	// Setup Gin router
 	r := gin.Default()
@@ -182,20 +186,63 @@ func main() {
 	r.Run(":" + port)
 }
 
-func NewProxyServer(authPath string) (*ProxyServer, error) {
-	// Expand home directory
-	if strings.HasPrefix(authPath, "~/") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
+func findAuthFile() (string, error) {
+	// Possible locations for auth.json
+	possiblePaths := []string{
+		"./auth.json",
+		"./.codex/auth.json",
+		"~/.codex/auth.json",
+	}
+
+	for _, path := range possiblePaths {
+		var fullPath string
+
+		if strings.HasPrefix(path, "~/") {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				continue
+			}
+			fullPath = filepath.Join(homeDir, path[2:])
+		} else {
+			fullPath = path
 		}
-		authPath = filepath.Join(homeDir, authPath[2:])
+
+		if _, err := os.Stat(fullPath); err == nil {
+			fmt.Printf("✓ Found auth.json at: %s\n", fullPath)
+			return fullPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("auth.json not found in any of the expected locations: %v", possiblePaths)
+}
+
+func NewProxyServer(authPath string) (*ProxyServer, error) {
+	var finalAuthPath string
+	var err error
+
+	if authPath == "" || authPath == "~/.codex/auth.json" {
+		// Auto-discovery mode
+		finalAuthPath, err = findAuthFile()
+		if err != nil {
+			return nil, fmt.Errorf("auto-discovery failed: %w", err)
+		}
+	} else {
+		// Expand home directory for manual path
+		if strings.HasPrefix(authPath, "~/") {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get home directory: %w", err)
+			}
+			finalAuthPath = filepath.Join(homeDir, authPath[2:])
+		} else {
+			finalAuthPath = authPath
+		}
 	}
 
 	// Read auth.json file
-	authContent, err := os.ReadFile(authPath)
+	authContent, err := os.ReadFile(finalAuthPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read auth.json: %w", err)
+		return nil, fmt.Errorf("failed to read auth.json from %s: %w", finalAuthPath, err)
 	}
 
 	var authData AuthData
