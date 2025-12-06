@@ -168,8 +168,8 @@ func main() {
 	})
 
 	// Models endpoints
-	r.GET("/models", handleModels)
-	r.GET("/v1/models", handleModels)
+	r.GET("/models", func(c *gin.Context) { handleModels(c, proxy) })
+	r.GET("/v1/models", func(c *gin.Context) { handleModels(c, proxy) })
 
 	// Chat completions endpoints
 	r.POST("/chat/completions", func(c *gin.Context) { handleChatCompletions(c, proxy) })
@@ -360,28 +360,88 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-func handleModels(c *gin.Context) {
+// Fetch available models from Codex API
+func (p *ProxyServer) fetchCodexModels() ([]gin.H, error) {
+	// For now, return the known models from ChatGPT API based on the JSON you provided
+	// TODO: Fix authentication headers to properly access Codex API
+	fmt.Println("📋 Using known ChatGPT models (API authentication needs fixing)")
+
+	models := []gin.H{
+		{
+			"id":       "gpt-5-1",
+			"object":   "model",
+			"created":  1687882411,
+			"owned_by": "openai",
+		},
+		{
+			"id":       "gpt-5",
+			"object":   "model",
+			"created":  1687882411,
+			"owned_by": "openai",
+		},
+		{
+			"id":       "gpt-5-mini",
+			"object":   "model",
+			"created":  1687882411,
+			"owned_by": "openai",
+		},
+		{
+			"id":       "auto",
+			"object":   "model",
+			"created":  1687882411,
+			"owned_by": "openai",
+		},
+	}
+
+	fmt.Printf("✅ Found %d ChatGPT models\n", len(models))
+	for _, model := range models {
+		fmt.Printf("   📋 %s\n", model["id"])
+	}
+
+	return models, nil
+}
+
+func getDefaultModels() []gin.H {
+	return []gin.H{
+		{
+			"id":       "gpt-4",
+			"object":   "model",
+			"created":  1687882411,
+			"owned_by": "openai",
+		},
+		{
+			"id":       "gpt-5",
+			"object":   "model",
+			"created":  1687882411,
+			"owned_by": "openai",
+		},
+	}
+}
+
+func handleModels(c *gin.Context, proxy *ProxyServer) {
 	logRequest(c)
 
 	fmt.Println("📋 === MATCHED MODELS REQUEST ===")
+	fmt.Println("🔍 Fetching available models from Codex API...")
+
+	models, err := proxy.fetchCodexModels()
+	if err != nil {
+		fmt.Printf("❌ Error fetching models: %v\n", err)
+		c.JSON(500, gin.H{
+			"error": gin.H{
+				"message": "Failed to fetch models from Codex API",
+				"type":    "api_error",
+			},
+		})
+		return
+	}
+
+	fmt.Printf("✅ Found %d models\n", len(models))
 	fmt.Println("📋 === END MATCHED ===\n")
 
 	modelsResponse := gin.H{
 		"object": "list",
-		"data": []gin.H{
-			{
-				"id":      "gpt-4",
-				"object":  "model",
-				"created": 1687882411,
-				"owned_by": "openai",
-			},
-			{
-				"id":       "gpt-5",
-				"object":   "model",
-				"created":  1687882411,
-				"owned_by": "openai",
-			},
-		},
+		"data":   models,
 	}
 
 	c.JSON(200, modelsResponse)
